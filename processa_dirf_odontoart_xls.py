@@ -141,53 +141,74 @@ def extrair_dados_xls(xls_path: str) -> dict:
 # ---------------------------------------------------------------------------
 # 2. Injeção no arquivo DIRF (substituição cirúrgica — igual ao script PDF)
 # ---------------------------------------------------------------------------
-def processar_dirf(txt_entrada: str, txt_saida: str, dados_plano: dict):
+def processar_dirf(txt_entrada: str, txt_saida: str, dados_plano: dict, limit_records=50):
     """
-    Lê 2026.txt linha a linha.
-    - Linhas que NÃO são TPSE: copia intactas.
-    - Linhas TPSE cujo CPF está em dados_plano: substitui pelo novo TPSE
-      (valor individualizado do titular) + DTPSE de cada dependente.
-    - Linhas TPSE cujo CPF NÃO está no dicionário: copia intactas.
-
+    Lê o TXT da DIRF linha a linha.
+    - Mantém apenas os 50 primeiros funcionários + os funcionários que estão em dados_plano.
+    - Substitui cirurgicamente o TPSE e insere os DTPSE corretos.
     CRÍTICO: encoding=cp1252 e newline='' para não corromper \\r\\n.
     """
+    cpfs_mantidos = set()
+    bpfdec_lidos = 0
+    manter_bloco_atual = True
+
     with open(txt_entrada, 'r', encoding='cp1252', newline='') as fin, \
          open(txt_saida,   'w', encoding='cp1252', newline='') as fout:
 
         for linha in fin:
-            if not linha.startswith('TPSE|'):
+            if linha.startswith('BPFDEC|'):
+                partes = linha.split('|')
+                cpf = partes[1].strip()
+                
+                if cpf in dados_plano or bpfdec_lidos < limit_records:
+                    manter_bloco_atual = True
+                    cpfs_mantidos.add(cpf)
+                    if cpf not in dados_plano:
+                        bpfdec_lidos += 1
+                else:
+                    manter_bloco_atual = False
+            
+            if linha.startswith('PSE|'):
+                manter_bloco_atual = True
+                
+            if linha.startswith('TPSE|'):
+                partes = linha.split('|')
+                cpf_titular = partes[1].strip()
+                
+                if cpf_titular not in cpfs_mantidos:
+                    continue # Pula TPSE de quem não foi incluído
+
+                if cpf_titular in dados_plano:
+                    info = dados_plano[cpf_titular]
+                    fout.write(f"TPSE|{cpf_titular}|{info['nome']}|{info['titular_valor']}|\r\n")
+                    for dep in info['dependentes']:
+                        cod_par = get_parentesco_code(dep['parentesco'])
+                        fout.write(f"DTPSE|{dep['cpf']}||{dep['nome']}|{cod_par}|{dep['valor']}|\r\n")
+                    continue
+                else:
+                    fout.write(linha)
+                    continue
+
+            if linha.startswith('DTPSE|'):
+                continue # Original não tinha
+
+            if linha.startswith('FIMDIRF|'):
                 fout.write(linha)
+                break
+
+            if not manter_bloco_atual:
                 continue
 
-            partes = linha.split('|')
-            cpf_titular = partes[1].strip()
-
-            if cpf_titular not in dados_plano:
-                # CPF não encontrado na planilha — mantém original
-                fout.write(linha)
-                continue
-
-            info = dados_plano[cpf_titular]
-
-            # Grava novo TPSE — valor em centavos, igual ao script PDF que funciona
-            # Ex: R$17.880,00 anuais -> 1788000
-            val_tit = info['titular_valor']
-            fout.write(f"TPSE|{cpf_titular}|{info['nome']}|{val_tit}|\r\n")
-
-            # Grava DTPSE para cada dependente (titular + cada dep separados)
-            for dep in info['dependentes']:
-                cod_par = get_parentesco_code(dep['parentesco'])
-                val_dep = dep['valor']
-                fout.write(f"DTPSE|{dep['cpf']}||{dep['nome']}|{cod_par}|{val_dep}|\r\n")
+            fout.write(linha)
 
 
 # ---------------------------------------------------------------------------
 # 3. Ponto de entrada — TRAVA DE SEGURANÇA: apenas os 3 primeiros titulares
 # ---------------------------------------------------------------------------
 if __name__ == '__main__':
-    XLS_PATH = 'c:/Antigravity/DirfReceita/Odontoart 2025.xls'
-    TXT_ENTRADA = 'c:/Antigravity/DirfReceita/2026.txt'
-    TXT_SAIDA   = 'c:/Antigravity/DirfReceita/2026_processado_xls.txt'
+    XLS_PATH = 'Base/Odontoart 2025.xls'
+    TXT_ENTRADA = 'Importação/2026.txt'
+    TXT_SAIDA   = 'Importação/2026_processado_xls.txt'
 
     print("Extraindo dados da planilha Excel...")
     dados = extrair_dados_xls(XLS_PATH)
@@ -196,10 +217,10 @@ if __name__ == '__main__':
     # =====================================================================
     # TRAVA DE SEGURANÇA — remover [:3] após validar no PGD
     # =====================================================================
-    keys_teste = list(dados.keys())[:3]
+    keys_teste = list(dados.keys())[:5]
     dados_teste = {k: dados[k] for k in keys_teste}
 
-    print("\n--- 3 titulares que serão processados neste teste ---")
+    print(f"\n--- {len(keys_teste)} titulares que serão processados neste teste ---")
     for cpf, info in dados_teste.items():
         val_reais = info['titular_valor'] / 100
         print(f"  CPF: {cpf} | Nome: {info['nome']} | Anual Titular: R$ {val_reais:,.2f} | Gravado como: {info['titular_valor']}")

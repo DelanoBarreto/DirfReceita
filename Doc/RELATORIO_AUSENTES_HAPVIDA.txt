@@ -1,0 +1,28 @@
+RELATÓRIO DE TITULARES NA PLANILHA HAPVIDA AUSENTES NO ARQUIVO DIRF (2026.txt)
+================================================================================
+CPF             | NOME
+--------------------------------------------------------------------------------
+75701820300     | ADABERON MARTINS MOREIRA
+54903254372     | ADRIANO ARAUJO MAGALHAES
+44571747349     | ANDRE PINHEIRO DE LIMA
+80155618334     | ANTONINO DA SILVA CALISTO FILHO
+02101170361     | CARLOS FERNANDES CASTRO SILVA
+58951725391     | FERNANDO OLIVEIRA DE ARAUJO
+82269041372     | FRANCISCO ERICO GOMES SIQUEIRA
+61653462353     | IRLENE DA SILVA XAVIER
+80249400359     | IVAN FERNANDES DE OLIVEIRA FILHO
+43149219353     | JOAO VICENTE GONCALVES DE LIMA
+74131249391     | KARMEN DESIREE PINHEIRO MARTINS
+85513644304     | PATRICIA MARA DANTAS DA ROCHA
+01590644301     | ROGERSON HERACLITO GOMES FERREIRA
+04310858384     | ROMULO CESAR MARTINS FERREIRA
+04210285307     | ROMULO FERNANDES LIMA
+01979502307     | THIAGO COELHO COSTA
+00366993305     | THIAGO MARCOLINO PATRICIO DE OLIVEIRA
+73498637304     | WESLEY JOSE PEREIRA RODRIGUES
+--------------------------------------------------------------------------------
+Total: 18 registros.
+================================================================================
+
+OBSERVAÇÃO: Estes funcionários não possuem o registro 'BPFDEC' no arquivo original.
+A importação de dados de saúde para estes CPFs falhará no PGD se não for criado o cadastro deles.

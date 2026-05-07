@@ -45,7 +45,7 @@ def extrair_dados_pdf(pdf_path):
                 pessoa_atual = None
     return dados
 
-def processar_dirf(txt_entrada, txt_saida, dados_plano):
+def processar_dirf(txt_entrada: str, txt_saida: str, dados_plano: dict, limit_records=50):
     mapa_parentesco = {'CONJUGE': '03', 'FILHO(A)': '04', 'FILHO': '04', 'ENTEADO(A)': '06', 'PAI': '08', 'MAE': '08', 'AGREGADO': '10'}
     
     def get_parentesco_code(txt_relacao):
@@ -54,37 +54,66 @@ def processar_dirf(txt_entrada, txt_saida, dados_plano):
             if k in txt_relacao: return v
         return '10'
 
-    # newline='' para manter o padrão \r\n
+    cpfs_mantidos = set()
+    bpfdec_lidos = 0
+    manter_bloco_atual = True
+
     with open(txt_entrada, 'r', encoding='cp1252', newline='') as fin, \
-         open(txt_saida, 'w', encoding='cp1252', newline='') as fout:
-        
+         open(txt_saida,   'w', encoding='cp1252', newline='') as fout:
+
         for linha in fin:
+            if linha.startswith('BPFDEC|'):
+                partes = linha.split('|')
+                cpf = partes[1].strip()
+                
+                if cpf in dados_plano or bpfdec_lidos < limit_records:
+                    manter_bloco_atual = True
+                    cpfs_mantidos.add(cpf)
+                    if cpf not in dados_plano:
+                        bpfdec_lidos += 1
+                else:
+                    manter_bloco_atual = False
+            
+            if linha.startswith('PSE|'):
+                manter_bloco_atual = True
+                
             if linha.startswith('TPSE|'):
                 partes = linha.split('|')
                 cpf_titular = partes[1].strip()
                 
+                if cpf_titular not in cpfs_mantidos:
+                    continue 
+
                 if cpf_titular in dados_plano:
-                    info_titular = dados_plano[cpf_titular]
-                    
-                    # Usa o valor sem preenchimento de zeros, igual ao arquivo original
-                    val_titular = int(info_titular['titular_valor'])
-                    fout.write(f"TPSE|{cpf_titular}|{info_titular['nome']}|{val_titular}|\r\n")
-                    
-                    for dep in info_titular['dependentes']:
-                        parentesco_code = get_parentesco_code(dep['parentesco'])
+                    info = dados_plano[cpf_titular]
+                    val_tit = int(info['titular_valor'])
+                    fout.write(f"TPSE|{cpf_titular}|{info['nome']}|{val_tit}|\r\n")
+                    for dep in info['dependentes']:
+                        cod_par = get_parentesco_code(dep['parentesco'])
                         val_dep = int(dep['valor'])
-                        fout.write(f"DTPSE|{dep['cpf']}||{dep['nome']}|{parentesco_code}|{val_dep}|\r\n")
+                        fout.write(f"DTPSE|{dep['cpf']}||{dep['nome']}|{cod_par}|{val_dep}|\r\n")
+                    continue
                 else:
-                    # Se não for um dos 3 funcionários teste, copia o original intacto
                     fout.write(linha)
-            else:
+                    continue
+
+            if linha.startswith('DTPSE|'):
+                continue 
+
+            if linha.startswith('FIMDIRF|'):
                 fout.write(linha)
+                break
+
+            if not manter_bloco_atual:
+                continue
+
+            fout.write(linha)
 
 if __name__ == '__main__':
-    dados = extrair_dados_pdf('c:/Antigravity/DirfReceita/odontoart 2025.pdf')
-    # Validando com 3 funcionários
-    keys_teste = list(dados.keys())[:3]
+    dados = extrair_dados_pdf('Base/odontoart 2025.pdf')
+    # Validando com 5 funcionários
+    keys_teste = list(dados.keys())[:5]
     dados_teste = {k: dados[k] for k in keys_teste}
     
-    processar_dirf('c:/Antigravity/DirfReceita/2026.txt', 'c:/Antigravity/DirfReceita/2026_processado.txt', dados_teste)
+    processar_dirf('Importação/2026.txt', 'Importação/2026_processado.txt', dados_teste)
     print("Sucesso! Arquivo gerado com a mesma estrutura original, apenas individualizando os valores do plano de saúde dos testes.")
